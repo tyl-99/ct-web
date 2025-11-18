@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear Service Worker</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 { color: #333; }
+        .status {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+        .success {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+        button {
+            background: #1976d2;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px 10px 0;
+        }
+        button:hover {
+            background: #1565c0;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>🧹 Clear Service Worker & Caches</h1>
+        <p>This page will unregister all service workers and clear all browser caches.</p>
+        
+        <button onclick="clearEverything()">Clear Everything</button>
+        <button onclick="window.location.reload()">Reload Page</button>
+        
+        <div id="status"></div>
+    </div>
+
+    <script>
+        function log(message, isSuccess = false) {
+            const status = document.getElementById('status');
+            const div = document.createElement('div');
+            div.className = 'status' + (isSuccess ? ' success' : '');
+            div.textContent = message;
+            status.appendChild(div);
+        }
+
+        async function clearEverything() {
+            const status = document.getElementById('status');
+            status.innerHTML = '';
+            
+            try {
+                // Unregister all service workers
+                if ('serviceWorker' in navigator) {
+                    log('Checking for service workers...');
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    
+                    if (registrations.length === 0) {
+                        log('No service workers found.', true);
+                    } else {
+                        for (const registration of registrations) {
+                            await registration.unregister();
+                            log(`✅ Unregistered service worker: ${registration.scope}`, true);
+                        }
+                    }
+                }
+                
+                // Clear all caches
+                if ('caches' in window) {
+                    log('Checking for caches...');
+                    const cacheNames = await caches.keys();
+                    
+                    if (cacheNames.length === 0) {
+                        log('No caches found.', true);
+                    } else {
+                        for (const cacheName of cacheNames) {
+                            await caches.delete(cacheName);
+                            log(`✅ Deleted cache: ${cacheName}`, true);
+                        }
+                    }
+                }
+                
+                log('🎉 All done! Service workers and caches cleared.', true);
+                log('You can now close this page and refresh your app.', true);
+                
+            } catch (error) {
+                log('❌ Error: ' + error.message);
+            }
+        }
+        
+        // Auto-run on page load
+        window.addEventListener('load', clearEverything);
+    </script>
+</body>
+</html>
+

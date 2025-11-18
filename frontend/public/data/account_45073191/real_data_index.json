@@ -1,0 +1,11 @@
+{
+  "account_id": "45073191",
+  "real_trades_path": "data/account_45073191/real_trades_data.json",
+  "real_summary_path": "data/account_45073191/real_summary_stats.json",
+  "forex_data_path": "data/account_45073191/forex_data.json",
+  "processed_at": "2025-11-16T13:42:16.252216",
+  "total_trades": 21,
+  "total_pairs": 5,
+  "account_balance": 1348.8,
+  "account_equity": 0.0
+}

@@ -1,0 +1,67 @@
+{
+  "total_pairs": 5,
+  "total_trades": 21,
+  "total_wins": 8,
+  "total_losses": 13,
+  "total_pnl": 262.57,
+  "pairs_summary": {
+    "EUR_GBP": {
+      "total_trades": 6,
+      "wins": 4,
+      "losses": 2,
+      "total_pnl": 659.5799999999999,
+      "win_rate": 66.66666666666666,
+      "avg_pnl": 109.92999999999999,
+      "fibonacci_accuracy": 0.0
+    },
+    "GBP_USD": {
+      "total_trades": 3,
+      "wins": 1,
+      "losses": 2,
+      "total_pnl": 7.22999999999999,
+      "win_rate": 33.33333333333333,
+      "avg_pnl": 2.4099999999999966,
+      "fibonacci_accuracy": 0.0
+    },
+    "USD_JPY": {
+      "total_trades": 7,
+      "wins": 0,
+      "losses": 7,
+      "total_pnl": -912.05,
+      "win_rate": 0.0,
+      "avg_pnl": -130.29285714285714,
+      "fibonacci_accuracy": 0.0
+    },
+    "GBP_JPY": {
+      "total_trades": 1,
+      "wins": 0,
+      "losses": 1,
+      "total_pnl": -71.81,
+      "win_rate": 0.0,
+      "avg_pnl": -71.81,
+      "fibonacci_accuracy": 0.0
+    },
+    "EUR_USD": {
+      "total_trades": 4,
+      "wins": 3,
+      "losses": 1,
+      "total_pnl": 579.62,
+      "win_rate": 75.0,
+      "avg_pnl": 144.905,
+      "fibonacci_accuracy": 0.0
+    }
+  },
+  "account_info": {
+    "account_id": 45073191,
+    "balance": 1348.8,
+    "equity": 0.0,
+    "free_margin": 0.0,
+    "margin": 0.0,
+    "margin_level": 0.0,
+    "currency": "USD"
+  },
+  "open_positions": [],
+  "last_updated": "2025-11-16T13:42:16.243198",
+  "overall_win_rate": 38.095238095238095,
+  "avg_pnl": 12.503333333333334
+}
