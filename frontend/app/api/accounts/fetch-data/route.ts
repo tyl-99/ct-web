@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 import path from 'path'
+import { ExecOptions } from 'child_process'
 
-const execAsync = promisify(exec)
+const execAsync = promisify(exec) as (command: string, options?: ExecOptions) => Promise<{ stdout: string; stderr: string }>
 
 // Path to account manager script
 const BACKEND_DIR = path.resolve(process.cwd(), '..', 'backend')
