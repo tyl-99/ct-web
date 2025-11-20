@@ -25,8 +25,13 @@ if (typeof window !== 'undefined') {
   })
   // Initialize Firebase Messaging
   // Check for service worker availability before initializing messaging
+  // Firebase will automatically look for /firebase-messaging-sw.js in the public directory
   if ('serviceWorker' in navigator) {
-    messaging = getMessaging(firebaseApp)
+    try {
+      messaging = getMessaging(firebaseApp)
+    } catch (error) {
+      console.error('Failed to initialize Firebase Messaging:', error)
+    }
   }
 }
 

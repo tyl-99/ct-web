@@ -10,15 +10,46 @@ _db: Optional[firestore.Client] = None
 
 
 def _load_credentials() -> credentials.Certificate:
+    # Support multiple environment variable names for compatibility
+    # Priority: FIREBASE_ADMIN_CREDENTIALS > FIREBASE_ADMIN_CREDENTIALS_PATH > FIREBASE_CREDENTIALS > FIREBASE_CREDENTIALS_JSON
+    
+    # Check for FIREBASE_ADMIN_CREDENTIALS (matches frontend and Railway deployment)
+    admin_cred_json = os.getenv("FIREBASE_ADMIN_CREDENTIALS")
+    admin_cred_path = os.getenv("FIREBASE_ADMIN_CREDENTIALS_PATH")
+    
+    # Legacy variable names (for backward compatibility)
     cred_path = os.getenv("FIREBASE_CREDENTIALS")
     cred_json = os.getenv("FIREBASE_CREDENTIALS_JSON")
-
+    
+    # Try FIREBASE_ADMIN_CREDENTIALS (JSON string)
+    if admin_cred_json:
+        cred_str = admin_cred_json.strip()
+        # Check if it's a JSON string (starts with {)
+        if cred_str.startswith('{'):
+            try:
+                return credentials.Certificate(json.loads(cred_str))
+            except json.JSONDecodeError as exc:
+                raise RuntimeError("FIREBASE_ADMIN_CREDENTIALS is not valid JSON") from exc
+        # Otherwise treat as file path
+        path = Path(cred_str).expanduser()
+        if path.exists():
+            return credentials.Certificate(str(path))
+    
+    # Try FIREBASE_ADMIN_CREDENTIALS_PATH (file path)
+    if admin_cred_path:
+        path = Path(admin_cred_path).expanduser()
+        if not path.exists():
+            raise RuntimeError(f"FIREBASE_ADMIN_CREDENTIALS_PATH file not found at {path}")
+        return credentials.Certificate(str(path))
+    
+    # Try legacy FIREBASE_CREDENTIALS (file path)
     if cred_path:
         path = Path(cred_path).expanduser()
         if not path.exists():
             raise RuntimeError(f"FIREBASE_CREDENTIALS file not found at {path}")
         return credentials.Certificate(str(path))
 
+    # Try legacy FIREBASE_CREDENTIALS_JSON (JSON string)
     if cred_json:
         try:
             return credentials.Certificate(json.loads(cred_json))
@@ -26,8 +57,11 @@ def _load_credentials() -> credentials.Certificate:
             raise RuntimeError("FIREBASE_CREDENTIALS_JSON is not valid JSON") from exc
 
     raise RuntimeError(
-        "Firebase credentials are missing. Set FIREBASE_CREDENTIALS with a file path "
-        "or FIREBASE_CREDENTIALS_JSON with the JSON contents of the service account."
+        "Firebase credentials are missing. Set one of:\n"
+        "  - FIREBASE_ADMIN_CREDENTIALS (JSON string or file path)\n"
+        "  - FIREBASE_ADMIN_CREDENTIALS_PATH (file path)\n"
+        "  - FIREBASE_CREDENTIALS (file path, legacy)\n"
+        "  - FIREBASE_CREDENTIALS_JSON (JSON string, legacy)"
     )
 
 
@@ -37,8 +71,26 @@ def get_db() -> firestore.Client:
         return _db
 
     if not firebase_admin._apps:
-        cred = _load_credentials()
-        firebase_admin.initialize_app(cred)
+        try:
+            cred = _load_credentials()
+            firebase_admin.initialize_app(cred)
+        except RuntimeError as e:
+            # Re-raise credential loading errors with helpful message
+            raise RuntimeError(
+                f"Failed to load Firebase credentials: {e}\n"
+                "Please check your environment variables and ensure the credentials are valid."
+            ) from e
+        except Exception as e:
+            # Handle other initialization errors (e.g., invalid JWT signature)
+            raise RuntimeError(
+                f"Failed to initialize Firebase Admin: {e}\n"
+                "This usually means:\n"
+                "  1. The credentials JSON is invalid or corrupted\n"
+                "  2. The private key in the credentials is incorrect\n"
+                "  3. The credentials are for a different Firebase project\n"
+                "  4. The service account key has been revoked\n"
+                "\nPlease verify your FIREBASE_ADMIN_CREDENTIALS or FIREBASE_ADMIN_CREDENTIALS_PATH."
+            ) from e
 
     _db = firestore.client()
     return _db
@@ -204,17 +256,34 @@ def send_push_notification(token: str, title: str, body: str, data: Optional[Dic
     """Sends a push notification to a specific device token."""
     from firebase_admin import messaging
 
+    # Create message with both notification and data payload
+    # This ensures notifications work in both foreground and background
     message = messaging.Message(
-        notification=messaging.Notification(title=title, body=body),
-        data=data,
+        notification=messaging.Notification(
+            title=title,
+            body=body,
+        ),
+        data=data or {},  # Data payload for custom handling
         token=token,
+        webpush=messaging.WebpushConfig(
+            notification=messaging.WebpushNotification(
+                title=title,
+                body=body,
+                icon='/icon-192x192.png',
+                badge='/icon-96x96.png',
+            )
+        )
     )
 
     try:
         response = messaging.send(message)
-        print(f"Successfully sent message: {response}")
+        print(f"✅ Successfully sent message: {response}")
+        print(f"   Title: {title}")
+        print(f"   Body: {body}")
+        print(f"   Token: {token[:20]}...")
     except Exception as e:
-        print(f"Error sending message: {e}")
+        print(f"❌ Error sending message: {e}")
+        raise
 
 
 def save_device_token(token: str) -> None:

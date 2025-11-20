@@ -10,6 +10,7 @@ import DashboardGrid from './components/DashboardGrid'
 import DashboardCard from './components/DashboardCard'
 import StatsOverview from './components/StatsOverview'
 import TradesList from './components/TradesList'
+import NotificationDemo from './components/NotificationDemo'
 import { useAutoRefresh } from './hooks/useAutoRefresh'
 
 interface SummaryStats {
@@ -24,6 +25,9 @@ interface SummaryStats {
 interface TradeData {
   [key: string]: any[]
 }
+
+// Module-level flag to prevent duplicate execution in React StrictMode
+let hasInitialized = false
 
 export default function Home() {
   const [summaryStats, setSummaryStats] = useState<SummaryStats | null>(null)
@@ -319,21 +323,31 @@ export default function Home() {
     }
   }, [selectedAccountId, accounts, hasAttemptedAutoFetch]) // Don't include loadAccounts to avoid circular calls
 
-  // Set up auto-refresh (every 30 seconds in development)
+  // Auto-refresh disabled - use manual refresh button instead
+  // Note: In development mode, React StrictMode causes components to render twice,
+  // which is why you see duplicate logs. This is expected behavior and helps catch bugs.
+  // It only happens in development, not in production.
   const isDevelopment = process.env.NODE_ENV === 'development'
   const { lastRefresh, forceRefresh } = useAutoRefresh(loadData, {
-    interval: 30000, // 30 seconds
-    enabled: isDevelopment
+    interval: 120000, // 2 minutes (120000ms) - not used when disabled
+    enabled: false // Disabled - use manual refresh button instead
   })
 
-  // Initial load - only run once on mount
+  // Initial load - only run once on mount (even with StrictMode)
   useEffect(() => {
-    if (initialLoadComplete.current) return
+    // Prevent duplicate execution in React StrictMode using module-level flag
+    if (hasInitialized || initialLoadComplete.current) {
+      return
+    }
+    
+    // Mark as started immediately to prevent duplicate execution
+    hasInitialized = true
+    initialLoadComplete.current = true
     
     // Set loading to true immediately
     setLoading(true)
     
-    // Load accounts first, then load data with the correct account ID
+    // Load accounts first, then trigger data processor, then load data with the correct account ID
     const initializeData = async () => {
       try {
         console.log('🚀 Initial load starting...')
@@ -341,22 +355,41 @@ export default function Home() {
         console.log('✅ Accounts loaded:', accountList.length, 'First account:', accountId)
         
         if (accountList.length > 0 && accountId) {
-          // Mark as complete BEFORE setting state to prevent double-load
-          initialLoadComplete.current = true
+          // Trigger data processor in background (non-blocking) - don't wait for it
+          console.log('🔄 Triggering data processor to fetch fresh data (background)...')
+          fetch('/api/accounts/fetch-data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ account_id: accountId })
+          })
+            .then(response => {
+              if (response.ok) {
+                return response.json()
+              } else {
+                console.warn('⚠️ Data processor trigger returned:', response.status)
+                return null
+              }
+            })
+            .then(result => {
+              if (result) {
+                console.log('✅ Data processor triggered successfully:', result.message || 'Success')
+              }
+            })
+            .catch(error => {
+              console.warn('⚠️ Error triggering data processor (non-blocking):', error.message || error)
+            })
           
           // Set the account ID in state
           setSelectedAccountId(accountId)
           
-          // Load data immediately with this account ID (don't wait for state update)
+          // Load data immediately - don't wait for data processor
           console.log('📊 Loading data for account:', accountId)
           await loadData(accountId) // Pass accountId directly to avoid race condition
         } else {
-          initialLoadComplete.current = true
           setLoading(false)
         }
       } catch (error) {
         console.error('❌ Initial load error:', error)
-        initialLoadComplete.current = true
         setLoading(false)
       }
     }
@@ -380,8 +413,31 @@ export default function Home() {
     
     // Only reload if account actually changed AND we've already done the initial load
     if (previousAccountId.current !== null && previousAccountId.current !== selectedAccountId) {
-      console.log('🔄 Account changed from', previousAccountId.current, 'to', selectedAccountId, '- reloading data')
-      loadData(selectedAccountId)
+      console.log('🔄 Account changed from', previousAccountId.current, 'to', selectedAccountId, '- triggering data processor and reloading data')
+      
+      // Trigger data processor for the new account
+      const triggerAndLoad = async () => {
+        try {
+          const fetchResponse = await fetch('/api/accounts/fetch-data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ account_id: selectedAccountId })
+          })
+          
+          if (fetchResponse.ok) {
+            console.log('✅ Data processor triggered for account:', selectedAccountId)
+            // Wait a bit for data to be processed
+            await new Promise(resolve => setTimeout(resolve, 2000))
+          }
+        } catch (fetchError) {
+          console.warn('⚠️ Error triggering data processor:', fetchError, '- continuing with existing data')
+        }
+        
+        // Load data after triggering processor
+        loadData(selectedAccountId)
+      }
+      
+      triggerAndLoad()
     }
     
     previousAccountId.current = selectedAccountId
@@ -633,7 +689,15 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row">
+    <div className="min-h-screen flex flex-col lg:flex-row relative">
+      {/* Notification Demo Component - Shows how push notifications work */}
+      <div className="fixed bottom-4 right-4 z-50 max-w-sm hidden lg:block">
+        {/* NotificationDemo - Hidden for now but kept for future use */}
+        <div style={{ display: 'none' }}>
+          <NotificationDemo />
+        </div>
+      </div>
+      
       {/* Sidebar */}
       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} isMobile={isMobile} />
       

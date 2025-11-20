@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "clean": "node -e \"require('fs').rmSync('.next', {recursive: true, force: true})\" || echo Cleaned",
+    "clean:all": "node -e \"require('fs').rmSync('.next', {recursive: true, force: true}); require('fs').rmSync('node_modules/.cache', {recursive: true, force: true})\" || echo Cleaned"
   },
   "dependencies": {
     "autoprefixer": "^10.4.20",
