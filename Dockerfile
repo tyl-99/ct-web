@@ -19,6 +19,14 @@ RUN npm run build
 FROM python:3.10-slim
 WORKDIR /app
 
+# Install Node.js (required for running Next.js server)
+RUN apt-get update && apt-get install -y \
+    curl \
+    && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install Python dependencies
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
@@ -40,9 +48,12 @@ ENV DATA_DIR=/app/data
 ENV NODE_ENV=production
 ENV PORT=3000
 
+# Set working directory to frontend for npm start
+WORKDIR /app/frontend
+
 # Expose port
 EXPOSE 3000
 
-# Start Next.js server
-CMD ["sh", "-c", "cd frontend && npm start"]
+# Start Next.js server (using shell form to allow cd)
+CMD npm start
 
