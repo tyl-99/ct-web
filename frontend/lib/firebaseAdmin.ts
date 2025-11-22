@@ -22,13 +22,15 @@ function initializeFirebaseAdmin() {
     }
     
     // Add projectId explicitly if not already set
-    if (!initOptions.projectId && credentials.project_id) {
-      initOptions.projectId = credentials.project_id
+    // Handle both snake_case (from JSON) and camelCase (from type)
+    const projectId = (credentials as any).projectId || (credentials as any).project_id
+    if (!initOptions.projectId && projectId) {
+      initOptions.projectId = projectId
     }
     
     app = admin.initializeApp(initOptions)
     console.log('[Firebase Admin] Firebase Admin SDK initialized successfully')
-    console.log('[Firebase Admin] Project ID:', app.options.projectId || credentials.project_id)
+    console.log('[Firebase Admin] Project ID:', app.options.projectId || projectId)
     return app
   } catch (error: any) {
     console.error('[Firebase Admin] Failed to initialize:', error.message)
