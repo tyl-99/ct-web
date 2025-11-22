@@ -216,33 +216,47 @@ class AccountManager:
         try:
             # Run data processor in background
             # Use the same conda environment setup as the CLI
-            cmd = ['conda', 'run', '-n', 'trader-env', 'python', str(data_processor)]
+            # If account_id is provided, pass it as environment variable
+            import os
+            env = os.environ.copy()
+            if account_id:
+                env['CTRADER_ACCOUNT_ID'] = str(account_id)
             
-            # Start process in background (detached, no window)
+            python_cmd = os.getenv('PYTHON_CMD', 'python')
+            cmd = [python_cmd, str(data_processor)]
+            
+            print(f"🚀 [ACCOUNT MANAGER] Triggering data processor for account: {account_id or 'ALL'}")
+            print(f"📝 [ACCOUNT MANAGER] Command: {' '.join(cmd)}")
+            
+            # Start process in background but capture output
             if sys.platform == 'win32':
-                # Windows: suppress command prompt window
+                # Windows: suppress command prompt window but keep stdout/stderr
                 import subprocess
                 startupinfo = subprocess.STARTUPINFO()
                 startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
                 startupinfo.wShowWindow = subprocess.SW_HIDE
-                subprocess.Popen(
+                # Don't redirect to DEVNULL - let output go to console/logs
+                process = subprocess.Popen(
                     cmd,
                     cwd=str(backend_dir),
+                    env=env,
                     startupinfo=startupinfo,
                     creationflags=subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
+                    stdout=None,  # Let it print to console
+                    stderr=None,  # Let it print to console
                     shell=False
                 )
             else:
-                # Unix: use nohup-like behavior
-                subprocess.Popen(
+                # Unix: use nohup-like behavior but keep output
+                process = subprocess.Popen(
                     cmd,
                     cwd=str(backend_dir),
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
+                    env=env,
+                    stdout=None,  # Let it print to console
+                    stderr=None,  # Let it print to console
                     start_new_session=True
                 )
+            print(f"✅ [ACCOUNT MANAGER] Data processor started with PID: {process.pid}")
             return True
         except Exception as e:
             print(f"Error triggering data fetch: {e}")

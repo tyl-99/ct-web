@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Forward to notification service
-    const notificationApiBaseUrl = process.env.NEXT_PUBLIC_NOTIFICATION_API_URL || process.env.NOTIFICATION_API_URL || 'http://localhost:5001'
+    const notificationApiBaseUrl = process.env.NOTIFICATION_API_URL || process.env.NEXT_PUBLIC_NOTIFICATION_API_URL || 'http://localhost:5001'
     const notificationServiceUrl = `${notificationApiBaseUrl}/api/register-token`
     
     try {
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
         )
       }
     } catch (fetchError: any) {
-      const notificationApiBaseUrl = process.env.NEXT_PUBLIC_NOTIFICATION_API_URL || process.env.NOTIFICATION_API_URL || 'http://localhost:5001'
+      const notificationApiBaseUrl = process.env.NOTIFICATION_API_URL || process.env.NEXT_PUBLIC_NOTIFICATION_API_URL || 'http://localhost:5001'
       console.error(`❌ Error forwarding to notification service at ${notificationApiBaseUrl}:`, fetchError)
       console.error(`💡 Make sure the notification service is running on ${notificationApiBaseUrl}`)
       return NextResponse.json(

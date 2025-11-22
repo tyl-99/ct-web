@@ -43,9 +43,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch directly from account data API (not from Firebase)
-    const accountDataApiBaseUrl = process.env.NEXT_PUBLIC_ACCOUNT_DATA_API_URL || process.env.ACCOUNT_DATA_API_URL || 'http://localhost:8000'
+    const accountDataApiBaseUrl = process.env.ACCOUNT_DATA_API_URL || process.env.NEXT_PUBLIC_ACCOUNT_DATA_API_URL || 'http://localhost:8000'
     const apiUrl = `${accountDataApiBaseUrl}/account-data?account_id=${accountId}`
-    console.log(`📡 [API] Fetching data from localhost API: ${apiUrl}`)
+    console.log(`📡 [API] Fetching data from account data API: ${apiUrl}`)
     
     try {
       const response = await fetch(apiUrl, {
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
       })
       
       if (!response.ok) {
-        console.error(`❌ [API] Localhost API returned status ${response.status}`)
+      console.error(`❌ [API] Account data API returned status ${response.status}`)
         return NextResponse.json(
           { error: `Failed to fetch data from API: ${response.status}` },
           { status: response.status }
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
       }
 
       const accountData = await response.json()
-      console.log(`✅ [API] Data received from localhost API`)
+      console.log(`✅ [API] Data received from account data API`)
       
       // Transform the API response to match the expected format
       const summaryStats = accountData.summary_stats || {}

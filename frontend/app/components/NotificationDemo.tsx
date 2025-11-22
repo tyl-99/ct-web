@@ -55,9 +55,8 @@ const NotificationDemo: React.FC = () => {
     setLastResult(null)
 
     try {
-      // Send notification via notification service
-      const notificationApiUrl = process.env.NEXT_PUBLIC_NOTIFICATION_API_URL || 'http://localhost:5001'
-      const response = await fetch(`${notificationApiUrl}/api/send-notification`, {
+      // Send notification via internal API route so server handles base URL
+      const response = await fetch(`/api/send-notification`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

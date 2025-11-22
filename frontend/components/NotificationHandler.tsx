@@ -217,8 +217,7 @@ const NotificationHandler: React.FC = () => {
               console.log('✅ Token already registered, skipping API call')
             } else {
               // Register new or changed token
-              const notificationApiUrl = process.env.NEXT_PUBLIC_NOTIFICATION_API_URL || 'http://localhost:5001'
-              await fetch(`${notificationApiUrl}/api/register-token`, {
+              await fetch(`/api/register-token`, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
@@ -248,8 +247,7 @@ const NotificationHandler: React.FC = () => {
                 })
                 .catch(error => {
                   console.error('❌ Error registering token with notification service:', error)
-                  const notificationApiUrl = process.env.NEXT_PUBLIC_NOTIFICATION_API_URL || 'http://localhost:5001'
-                  console.warn(`⚠️ Make sure the notification service is running on ${notificationApiUrl}`)
+                  console.warn('⚠️ Token registration failed via /api/register-token (check server logs).')
                 })
             }
           } else {
