@@ -24,9 +24,9 @@ async function runAccountManagerCommand(args: string[]): Promise<any> {
   
   const { stdout, stderr } = await execAsync(command, { 
     cwd: BACKEND_DIR,
-    shell: true,
+    shell: true as any,
     maxBuffer: 10 * 1024 * 1024
-  })
+  } as ExecOptions)
 
   if (stderr && !stderr.includes('WARNING') && !stderr.trim().includes('Pydantic')) {
     console.error('Python stderr:', stderr)
