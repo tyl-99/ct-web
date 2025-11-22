@@ -299,8 +299,7 @@ const NotificationHandler: React.FC = () => {
               tag: uniqueTag, // Unique tag so each notification shows separately
               data: payload.data || {},
               requireInteraction: true, // Keep it open until user interacts (prevents auto-close)
-              silent: false, // Make sure it's not silent
-              sound: undefined // Browser will use default sound
+              silent: false // Make sure it's not silent (browser will use default sound)
             }
           )
           
