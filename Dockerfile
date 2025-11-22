@@ -48,12 +48,11 @@ ENV DATA_DIR=/app/data
 ENV NODE_ENV=production
 ENV PORT=3000
 
-# Set working directory to frontend for npm start
-WORKDIR /app/frontend
-
 # Expose port
 EXPOSE 3000
 
-# Start Next.js server (using shell form to allow cd)
-CMD npm start
+# Start Next.js server
+# Use exec form with explicit node path to avoid shell issues
+WORKDIR /app/frontend
+CMD ["node_modules/.bin/next", "start"]
 
