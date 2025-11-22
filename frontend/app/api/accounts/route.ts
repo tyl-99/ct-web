@@ -32,7 +32,8 @@ async function runAccountManagerCommand(args: string[]): Promise<any> {
   }
   
   const escapedArgs = args.map(escapeArg).join(' ')
-  const command = `conda run -n trader-env python "${ACCOUNT_MANAGER_CLI}" ${escapedArgs}`
+  const pythonCmd = process.env.PYTHON_CMD || 'python'
+  const command = `${pythonCmd} "${ACCOUNT_MANAGER_CLI}" ${escapedArgs}`
   
   const { stdout, stderr } = await execAsync(command, { 
     cwd: BACKEND_DIR,
