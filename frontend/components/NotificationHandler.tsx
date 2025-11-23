@@ -384,17 +384,20 @@ const NotificationHandler: React.FC = () => {
           // This matches the service worker logic to prevent duplicates
           const uniqueTag = payload.data?.tag || `trader-notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
           
+          // NotificationOptions type may not include badge in some TypeScript versions, so use type assertion
+          const notificationOptions: NotificationOptions & { badge?: string } = {
+            body: payload.notification?.body || 'You have a new message.',
+            icon: payload.notification?.icon || '/icon-192x192.png',
+            badge: '/icon-96x96.png', // Badge for mobile notifications
+            tag: uniqueTag, // Unique tag prevents duplicates
+            data: payload.data || {},
+            requireInteraction: true, // Keep it open until user interacts (prevents auto-close)
+            silent: false // Make sure it's not silent (browser will use default sound)
+          }
+          
           const notification = new Notification(
-            payload.notification?.title || 'New Message', 
-            {
-              body: payload.notification?.body || 'You have a new message.',
-              icon: payload.notification?.icon || '/icon-192x192.png',
-              badge: payload.notification?.badge || '/icon-96x96.png',
-              tag: uniqueTag, // Unique tag prevents duplicates
-              data: payload.data || {},
-              requireInteraction: true, // Keep it open until user interacts (prevents auto-close)
-              silent: false // Make sure it's not silent (browser will use default sound)
-            }
+            payload.notification?.title || 'New Message',
+            notificationOptions
           )
           
           console.log('✅ [FOREGROUND] Notification object created:', notification)
