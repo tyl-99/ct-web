@@ -96,15 +96,43 @@ const NotificationHandler: React.FC = () => {
     notificationHandlerInitialized = true
     appendDebugLog('Notification handler initialized')
     
-    // Log service worker status
+    // Log service worker status (with retry since registration happens async)
     if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(registrations => {
-        appendDebugLog(`Service Workers: ${registrations.length} registered`)
-        registrations.forEach((reg, idx) => {
-          appendDebugLog(`  SW ${idx + 1}: ${reg.active?.scriptURL || 'inactive'} (scope: ${reg.scope})`)
-        })
+      const checkServiceWorkers = async (retryCount = 0) => {
+        try {
+          const registrations = await navigator.serviceWorker.getRegistrations()
+          appendDebugLog(`Service Workers: ${registrations.length} registered`)
+          
+          if (registrations.length === 0 && retryCount < 5) {
+            // Retry after a delay if no service workers found yet
+            appendDebugLog(`  Retrying in 1s... (attempt ${retryCount + 1}/5)`)
+            setTimeout(() => checkServiceWorkers(retryCount + 1), 1000)
+            return
+          }
+          
+          if (registrations.length > 0) {
+            registrations.forEach((reg, idx) => {
+              const state = reg.installing ? 'installing' : reg.waiting ? 'waiting' : reg.active ? 'active' : 'unknown'
+              const scriptURL = reg.active?.scriptURL || reg.waiting?.scriptURL || reg.installing?.scriptURL || 'unknown'
+              appendDebugLog(`  SW ${idx + 1}: ${scriptURL} (${state}, scope: ${reg.scope})`)
+            })
+          } else {
+            appendDebugLog('⚠️ No service workers found after retries - registration may have failed')
+          }
+        } catch (err: any) {
+          appendDebugLog(`Error checking service workers: ${err.message}`)
+        }
+      }
+      
+      // Initial check
+      checkServiceWorkers()
+      
+      // Also check when service worker becomes ready
+      navigator.serviceWorker.ready.then(() => {
+        appendDebugLog('Service worker ready event fired, re-checking...')
+        checkServiceWorkers()
       }).catch(err => {
-        appendDebugLog(`Error checking service workers: ${err.message}`)
+        appendDebugLog(`Error waiting for SW ready: ${err.message}`)
       })
       
       // Listen for messages from service worker
