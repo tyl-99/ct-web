@@ -67,15 +67,72 @@ if (messaging) {
       return;
     }
     
-    // Broadcast to other service workers that we're showing this notification
-    if (broadcastChannel) {
-      broadcastChannel.postMessage({ type: 'notification-shown', tag: tag });
-    }
-    
-    notificationShown = true;
-    setTimeout(() => {
-      notificationShown = false;
-    }, NOTIFICATION_TIMEOUT);
+    // CRITICAL: Check if a notification with this tag already exists
+    // This prevents duplicates even if multiple service workers are active
+    return self.registration.getNotifications({ tag: tag }).then(existingNotifications => {
+      if (existingNotifications.length > 0) {
+        console.log(`⚠️ [SERVICE WORKER] Notification with tag ${tag} already exists, ignoring duplicate`);
+        return Promise.resolve();
+      }
+      
+      // Broadcast to other service workers that we're showing this notification
+      if (broadcastChannel) {
+        broadcastChannel.postMessage({ type: 'notification-shown', tag: tag });
+      }
+      
+      notificationShown = true;
+      setTimeout(() => {
+        notificationShown = false;
+      }, NOTIFICATION_TIMEOUT);
+      
+      // Customize notification here
+      const notificationTitle = payload.notification?.title || 'Background Message Title';
+      const notificationBody = payload.notification?.body || 'Background Message body.';
+      
+      const notificationOptions = {
+        body: notificationBody,
+        icon: payload.notification?.icon || '/icon-192x192.png',
+        badge: payload.notification?.badge || '/icon-96x96.png',
+        tag: tag, // Unique tag prevents browser duplicates
+        data: payload.data || {},
+        requireInteraction: false,
+        vibrate: [200, 100, 200] // Vibration pattern for mobile devices
+      };
+
+      console.log('🔔 [SERVICE WORKER] Showing notification:', notificationTitle, 'Tag:', tag);
+      
+      return self.registration.showNotification(notificationTitle, notificationOptions)
+        .then(() => {
+          console.log('✅ [SERVICE WORKER] Notification displayed successfully');
+        })
+        .catch((error) => {
+          console.error('❌ [SERVICE WORKER] Failed to show notification:', error);
+          // Reset flag on error so retry can work
+          notificationShown = false;
+        });
+    }).catch(error => {
+      console.error('❌ [SERVICE WORKER] Error checking existing notifications:', error);
+      // Continue anyway if check fails - show notification
+      notificationShown = true;
+      setTimeout(() => {
+        notificationShown = false;
+      }, NOTIFICATION_TIMEOUT);
+      
+      const notificationTitle = payload.notification?.title || 'Background Message Title';
+      const notificationBody = payload.notification?.body || 'Background Message body.';
+      
+      const notificationOptions = {
+        body: notificationBody,
+        icon: payload.notification?.icon || '/icon-192x192.png',
+        badge: payload.notification?.badge || '/icon-96x96.png',
+        tag: tag,
+        data: payload.data || {},
+        requireInteraction: false,
+        vibrate: [200, 100, 200]
+      };
+
+      return self.registration.showNotification(notificationTitle, notificationOptions);
+    });
     
     // Customize notification here
     const notificationTitle = payload.notification?.title || 'Background Message Title';
@@ -118,33 +175,41 @@ self.addEventListener('push', function(event) {
     return;
   }
   
-  // Broadcast to other service workers that we're showing this notification
-  if (broadcastChannel) {
-    broadcastChannel.postMessage({ type: 'notification-shown', tag: tag });
-  }
-  
-  notificationShown = true;
-  setTimeout(() => {
-    notificationShown = false;
-  }, NOTIFICATION_TIMEOUT);
-  
-  const title = data.notification?.title || data.title || 'Notification';
-  const body = data.notification?.body || data.body || '';
-  const icon = data.notification?.icon || '/icon-192x192.png';
-  const badge = data.notification?.badge || '/icon-96x96.png';
-  
-  const options = {
-    body: body,
-    icon: icon,
-    badge: badge,
-    tag: tag,
-    data: data.data || {},
-    requireInteraction: false,
-    vibrate: [200, 100, 200]
-  };
-  
+  // CRITICAL: Check if a notification with this tag already exists
   event.waitUntil(
-    self.registration.showNotification(title, options)
+    self.registration.getNotifications({ tag: tag }).then(existingNotifications => {
+      if (existingNotifications.length > 0) {
+        console.log(`⚠️ [SERVICE WORKER] Notification with tag ${tag} already exists (native), ignoring duplicate`);
+        return Promise.resolve();
+      }
+      
+      // Broadcast to other service workers that we're showing this notification
+      if (broadcastChannel) {
+        broadcastChannel.postMessage({ type: 'notification-shown', tag: tag });
+      }
+      
+      notificationShown = true;
+      setTimeout(() => {
+        notificationShown = false;
+      }, NOTIFICATION_TIMEOUT);
+      
+      const title = data.notification?.title || data.title || 'Notification';
+      const body = data.notification?.body || data.body || '';
+      const icon = data.notification?.icon || '/icon-192x192.png';
+      const badge = data.notification?.badge || '/icon-96x96.png';
+      
+      const options = {
+        body: body,
+        icon: icon,
+        badge: badge,
+        tag: tag,
+        data: data.data || {},
+        requireInteraction: false,
+        vibrate: [200, 100, 200]
+      };
+      
+      return self.registration.showNotification(title, options);
+    })
   );
 });
 

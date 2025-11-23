@@ -375,14 +375,46 @@ const NotificationHandler: React.FC = () => {
       console.log('📬 [FOREGROUND] Notification body:', payload.notification?.body)
       console.log('📬 [FOREGROUND] Data:', payload.data)
       
+      // Use unique tag - prefer data.tag if provided, otherwise generate unique tag
+      // This matches the service worker logic to prevent duplicates
+      const uniqueTag = payload.data?.tag || `trader-notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      
+      // CRITICAL: Check if this notification was already shown (deduplication)
+      // Use localStorage to track recent notifications across page reloads
+      const notificationKey = `notif-shown-${uniqueTag}`
+      const recentNotifications = JSON.parse(localStorage.getItem('recent-notifications') || '{}')
+      const now = Date.now()
+      const NOTIFICATION_COOLDOWN = 2000 // 2 seconds
+      
+      // Clean old entries (older than cooldown)
+      Object.keys(recentNotifications).forEach(key => {
+        if (now - recentNotifications[key] > NOTIFICATION_COOLDOWN) {
+          delete recentNotifications[key]
+        }
+      })
+      
+      // Check if this notification was shown recently
+      if (recentNotifications[notificationKey]) {
+        const timeSince = now - recentNotifications[notificationKey]
+        console.log(`⚠️ [FOREGROUND] Duplicate notification ignored (shown ${timeSince}ms ago)`)
+        return
+      }
+      
+      // Mark as shown
+      recentNotifications[notificationKey] = now
+      localStorage.setItem('recent-notifications', JSON.stringify(recentNotifications))
+      
+      // CRITICAL: Only show notification if app is actually in foreground
+      // If document is hidden, the service worker will handle it, so don't show here
+      if (document.hidden) {
+        console.log('⚠️ [FOREGROUND] App is in background, service worker will handle notification');
+        return;
+      }
+      
       // Display notification when app is in foreground
       if (Notification.permission === 'granted') {
         try {
           console.log('🔔 [FOREGROUND] Creating browser notification...')
-          
-          // Use unique tag - prefer data.tag if provided, otherwise generate unique tag
-          // This matches the service worker logic to prevent duplicates
-          const uniqueTag = payload.data?.tag || `trader-notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
           
           // NotificationOptions type may not include badge in some TypeScript versions, so use type assertion
           const notificationOptions: NotificationOptions & { badge?: string } = {
