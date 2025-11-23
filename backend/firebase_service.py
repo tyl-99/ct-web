@@ -276,13 +276,24 @@ def send_push_notification(token: str, title: str, body: str, data: Optional[Dic
     )
 
     try:
+        import datetime
+        timestamp = datetime.datetime.now().isoformat()
+        print(f"[{timestamp}] 🔔 [NOTIFICATION] Sending push notification")
+        print(f"[{timestamp}]    Title: {title}")
+        print(f"[{timestamp}]    Body: {body}")
+        print(f"[{timestamp}]    Token: {token[:20]}...{token[-10:]}")
+        print(f"[{timestamp}]    Data: {data}")
+        
         response = messaging.send(message)
-        print(f"✅ Successfully sent message: {response}")
-        print(f"   Title: {title}")
-        print(f"   Body: {body}")
-        print(f"   Token: {token[:20]}...")
+        print(f"[{timestamp}] ✅ [NOTIFICATION] Successfully sent message: {response}")
+        print(f"[{timestamp}]    Message ID: {response}")
     except Exception as e:
-        print(f"❌ Error sending message: {e}")
+        import datetime
+        timestamp = datetime.datetime.now().isoformat()
+        print(f"[{timestamp}] ❌ [NOTIFICATION] Error sending message: {e}")
+        print(f"[{timestamp}]    Error type: {type(e).__name__}")
+        import traceback
+        print(f"[{timestamp}]    Traceback: {traceback.format_exc()}")
         raise
 
 

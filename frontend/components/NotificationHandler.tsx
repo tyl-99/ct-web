@@ -108,11 +108,49 @@ const NotificationHandler: React.FC = () => {
       })
       
       // Listen for messages from service worker
-      navigator.serviceWorker.addEventListener('message', (event) => {
+      const handleServiceWorkerMessage = (event: MessageEvent) => {
         if (event.data && event.data.type === 'notification-log') {
-          appendDebugLog(`[SW] ${event.data.message}`)
+          appendDebugLog(`${event.data.message}`)
+          console.log('[SW Message]', event.data.message)
         }
+      }
+      
+      // Use BroadcastChannel for more reliable communication (if supported)
+      let swLogChannel: BroadcastChannel | null = null
+      try {
+        swLogChannel = new BroadcastChannel('sw-log-channel')
+        swLogChannel.onmessage = (event) => {
+          if (event.data && event.data.type === 'notification-log') {
+            appendDebugLog(`${event.data.message}`)
+            console.log('[SW Broadcast]', event.data.message)
+          }
+        }
+        appendDebugLog('BroadcastChannel listener set up for SW logs')
+      } catch (e) {
+        appendDebugLog('BroadcastChannel not supported, using message API')
+      }
+      
+      // Listen on navigator.serviceWorker (global message event)
+      navigator.serviceWorker.addEventListener('message', handleServiceWorkerMessage)
+      
+      // Also listen on the controller if available
+      if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.addEventListener('message', handleServiceWorkerMessage)
+      }
+      
+      // Set up listener for when service worker becomes available
+      navigator.serviceWorker.ready.then(registration => {
+        appendDebugLog(`Service worker ready: ${registration.scope}`)
+        if (registration.active) {
+          registration.active.addEventListener('message', handleServiceWorkerMessage)
+        }
+        // Also listen on the registration itself
+        registration.addEventListener('updatefound', () => {
+          appendDebugLog('Service worker update found')
+        })
       })
+      
+      appendDebugLog('Service worker message listener set up')
     }
     
     if (typeof window === 'undefined' || !('Notification' in window) || !messaging || !VAPID_KEY) {

@@ -20,15 +20,18 @@ let messaging;
 try {
   firebase.initializeApp(firebaseConfig);
   console.log('✅ [SW] Firebase initialized successfully');
+  logToMainThread('[SW] ✅ Firebase initialized successfully');
   
   // Retrieve an instance of Firebase Messaging so that it can handle background messages
   messaging = firebase.messaging();
   console.log('✅ [SW] Firebase Messaging initialized successfully');
+  logToMainThread('[SW] ✅ Firebase Messaging initialized successfully');
   
   // Make messaging available globally for Firebase SDK detection
   self.firebaseMessaging = messaging;
 } catch (error) {
   console.error('❌ [SW] Firebase initialization error:', error);
+  logToMainThread(`[SW] ❌ Firebase initialization error: ${error.message}`);
 }
 
 // Deduplication: Track recent notifications to prevent duplicates
@@ -39,16 +42,41 @@ const NOTIFICATION_TIMEOUT = 1000; // 1 second cooldown
 let broadcastChannel = null;
 
 // Helper function to send logs to main thread for debug panel
+let swLogBroadcastChannel = null;
+try {
+  swLogBroadcastChannel = new BroadcastChannel('sw-log-channel');
+} catch (e) {
+  // BroadcastChannel not supported
+}
+
 function logToMainThread(message) {
   console.log(message);
-  // Send to all clients (main thread)
-  self.clients.matchAll().then(clients => {
-    clients.forEach(client => {
-      client.postMessage({
+  
+  // Try BroadcastChannel first (more reliable)
+  if (swLogBroadcastChannel) {
+    try {
+      swLogBroadcastChannel.postMessage({
         type: 'notification-log',
         message: message,
         timestamp: new Date().toISOString()
       });
+    } catch (e) {
+      // Fallback to postMessage
+    }
+  }
+  
+  // Also send via postMessage to all clients (main thread)
+  self.clients.matchAll().then(clients => {
+    clients.forEach(client => {
+      try {
+        client.postMessage({
+          type: 'notification-log',
+          message: message,
+          timestamp: new Date().toISOString()
+        });
+      } catch (e) {
+        // Ignore errors
+      }
     });
   }).catch(err => {
     // Ignore errors if no clients
