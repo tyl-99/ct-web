@@ -24,6 +24,17 @@ export default function ServiceWorkerRegistration() {
         // Small delay to ensure Next.js is fully ready
         await new Promise(resolve => setTimeout(resolve, 200))
         
+        // CRITICAL: Unregister firebase-messaging-sw.js if it exists to prevent duplicates
+        // Firebase SDK auto-registers it, but we want to use our main sw.js instead
+        const registrations = await navigator.serviceWorker.getRegistrations()
+        for (const registration of registrations) {
+          if (registration.scope.includes('firebase-messaging-sw.js') || 
+              registration.active?.scriptURL.includes('firebase-messaging-sw.js')) {
+            console.log('⚠️ Unregistering firebase-messaging-sw.js to prevent duplicates')
+            await registration.unregister()
+          }
+        }
+        
         const registration = await navigator.serviceWorker.register('/sw.js?v=' + Date.now())
         console.log('Main Service Worker registered with scope: ', registration.scope)
         

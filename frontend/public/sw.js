@@ -32,8 +32,24 @@ try {
 }
 
 // Deduplication: Track recent notifications to prevent duplicates
+// Use BroadcastChannel for cross-service-worker coordination
 let notificationShown = false;
 const NOTIFICATION_TIMEOUT = 1000; // 1 second cooldown
+let broadcastChannel = null;
+
+try {
+  broadcastChannel = new BroadcastChannel('notification-dedup');
+  broadcastChannel.onmessage = (event) => {
+    if (event.data.type === 'notification-shown') {
+      notificationShown = true;
+      setTimeout(() => {
+        notificationShown = false;
+      }, NOTIFICATION_TIMEOUT);
+    }
+  };
+} catch (e) {
+  console.warn('BroadcastChannel not supported, using local deduplication only');
+}
 
 // Handle incoming messages while the app is in the background
 if (messaging) {
@@ -42,10 +58,18 @@ if (messaging) {
     console.log('🔔 [SERVICE WORKER] Notification title:', payload.notification?.title);
     console.log('🔔 [SERVICE WORKER] Notification body:', payload.notification?.body);
     
-    // Prevent duplicate notifications within timeout window
+    // Generate unique tag for this notification
+    const tag = payload.data?.tag || `trader-notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Check if another service worker already showed this notification
     if (notificationShown) {
-      console.log('⚠️ [SERVICE WORKER] Duplicate push ignored (within timeout window)');
+      console.log('⚠️ [SERVICE WORKER] Duplicate push ignored (local flag)');
       return;
+    }
+    
+    // Broadcast to other service workers that we're showing this notification
+    if (broadcastChannel) {
+      broadcastChannel.postMessage({ type: 'notification-shown', tag: tag });
     }
     
     notificationShown = true;
@@ -56,10 +80,6 @@ if (messaging) {
     // Customize notification here
     const notificationTitle = payload.notification?.title || 'Background Message Title';
     const notificationBody = payload.notification?.body || 'Background Message body.';
-    
-    // CRITICAL: Use unique tag to prevent duplicates
-    // Use data.tag if provided, otherwise generate unique tag with timestamp
-    const tag = payload.data?.tag || `trader-notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
     const notificationOptions = {
       body: notificationBody,
@@ -89,10 +109,18 @@ if (messaging) {
 self.addEventListener('push', function(event) {
   console.log('📬 [SERVICE WORKER] Native push event received');
   
+  const data = event.data ? event.data.json() : {};
+  const tag = data.data?.tag || `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  
   // Prevent duplicate notifications
   if (notificationShown) {
-    console.log('⚠️ [SERVICE WORKER] Duplicate push ignored (native event)');
+    console.log('⚠️ [SERVICE WORKER] Duplicate push ignored (native event, local flag)');
     return;
+  }
+  
+  // Broadcast to other service workers that we're showing this notification
+  if (broadcastChannel) {
+    broadcastChannel.postMessage({ type: 'notification-shown', tag: tag });
   }
   
   notificationShown = true;
@@ -100,14 +128,10 @@ self.addEventListener('push', function(event) {
     notificationShown = false;
   }, NOTIFICATION_TIMEOUT);
   
-  const data = event.data ? event.data.json() : {};
   const title = data.notification?.title || data.title || 'Notification';
   const body = data.notification?.body || data.body || '';
   const icon = data.notification?.icon || '/icon-192x192.png';
   const badge = data.notification?.badge || '/icon-96x96.png';
-  
-  // CRITICAL: Use unique tag to prevent duplicates
-  const tag = data.data?.tag || `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   
   const options = {
     body: body,
