@@ -1,5 +1,5 @@
 // Service Worker for TraderWeb PWA
-// Version: 6 - Includes Firebase Messaging for push notifications
+// Version: 7 - Cache strategy tuned to avoid stale Next.js chunks
 
 // Import Firebase scripts using importScripts (works in service workers)
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
@@ -85,13 +85,11 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
-const CACHE_NAME = 'traderweb-cache-v6';
+const CACHE_NAME = 'traderweb-cache-v7';
 const urlsToCache = [
-  '/',
   '/manifest.json',
   '/icon-192x192.png',
   '/icon-512x512.png',
-  // Only cache files that actually exist
 ];
 
 self.addEventListener('install', (event) => {
@@ -164,7 +162,9 @@ self.addEventListener('fetch', (event) => {
             return fetchResponse;
           }
           // Only cache successful responses
-          if (fetchResponse.ok) {
+          const contentType = fetchResponse.headers.get('Content-Type') || '';
+          const isHtml = contentType.includes('text/html');
+          if (fetchResponse.ok && !isHtml) {
             const responseClone = fetchResponse.clone();
             caches.open(CACHE_NAME).then((cache) => {
               cache.put(event.request, responseClone);
