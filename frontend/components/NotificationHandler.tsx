@@ -238,8 +238,8 @@ const NotificationHandler: React.FC = () => {
                     localStorage.setItem('fcm_token_registered', currentToken)
                   } else {
                     if (data.error === 'Notification service unavailable' || data.hint) {
-                      console.warn('⚠️ Notification service is not running:', data.hint || 'Start the service on port 5001')
-                      console.warn('⚠️ Token registration skipped. Notifications will not work until the service is started.')
+                      console.warn('⚠️ Notification service is not reachable:', data.hint || 'Check NOTIFICATION_API_URL on the server')
+                      console.warn('⚠️ Token registration skipped. Notifications will not work until the service responds.')
                     } else {
                       console.error('❌ Failed to register token with notification service:', data)
                     }

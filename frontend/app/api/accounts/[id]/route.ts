@@ -35,7 +35,12 @@ async function runAccountManagerCommand(args: string[]): Promise<any> {
     console.error('Python stderr:', stderr)
   }
 
-  const output = stdout.trim()
+  let output = stdout.trim()
+  const jsonStart = output.indexOf('{')
+  const jsonEnd = output.lastIndexOf('}')
+  if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd >= jsonStart) {
+    output = output.slice(jsonStart, jsonEnd + 1)
+  }
   if (!output) {
     throw new Error('No output from command')
   }
