@@ -91,6 +91,18 @@ export default function AccountsPage() {
   }, [])
 
   const triggerDataFetch = useCallback(async (accountId?: string) => {
+    // Request notification permission if not already granted/denied (iOS requirement)
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      const currentPermission = Notification.permission
+      if (currentPermission === 'default') {
+        try {
+          await Notification.requestPermission()
+        } catch (error) {
+          console.warn('Failed to request notification permission:', error)
+        }
+      }
+    }
+    
     try {
       setFetchingData(accountId || 'all')
       const response = await fetch('/api/accounts/fetch-data', {

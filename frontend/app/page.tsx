@@ -333,6 +333,23 @@ export default function Home() {
     enabled: false // Disabled - use manual refresh button instead
   })
 
+  // Wrapper for refresh that also requests notification permission (required for iOS)
+  const handleRefreshWithNotification = useCallback(async () => {
+    // Request notification permission if not already granted/denied (iOS requirement)
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      const currentPermission = Notification.permission
+      if (currentPermission === 'default') {
+        try {
+          await Notification.requestPermission()
+        } catch (error) {
+          console.warn('Failed to request notification permission:', error)
+        }
+      }
+    }
+    // Then proceed with refresh
+    await forceRefresh()
+  }, [forceRefresh])
+
   // Initial load - only run once on mount (even with StrictMode)
   useEffect(() => {
     // Prevent duplicate execution in React StrictMode using module-level flag
@@ -358,14 +375,14 @@ export default function Home() {
           // Trigger data processor in background (non-blocking) - don't wait for it
           console.log('🔄 Triggering data processor to fetch fresh data (background)...')
           fetch('/api/accounts/fetch-data', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ account_id: accountId })
-          })
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ account_id: accountId })
+            })
             .then(response => {
               if (response.ok) {
                 return response.json()
-              } else {
+            } else {
                 console.warn('⚠️ Data processor trigger returned:', response.status)
                 return null
               }
@@ -373,7 +390,7 @@ export default function Home() {
             .then(result => {
               if (result) {
                 console.log('✅ Data processor triggered successfully:', result.message || 'Success')
-              }
+            }
             })
             .catch(error => {
               console.warn('⚠️ Error triggering data processor (non-blocking):', error.message || error)
@@ -694,7 +711,7 @@ export default function Home() {
       <div className="fixed bottom-4 right-4 z-50 max-w-sm hidden lg:block">
         {/* NotificationDemo - Hidden for now but kept for future use */}
         <div style={{ display: 'none' }}>
-          <NotificationDemo />
+        <NotificationDemo />
         </div>
       </div>
       
@@ -709,7 +726,7 @@ export default function Home() {
             `Real-time trading performance and analytics (Auto-refresh: ${isDevelopment ? 'ON' : 'OFF'})` :
             "Real-time trading performance and analytics"
           }
-          onRefresh={forceRefresh}
+          onRefresh={handleRefreshWithNotification}
           isRefreshing={isRefreshing}
         />
         
