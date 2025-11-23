@@ -83,6 +83,22 @@ if (messaging) {
     console.log('🔔 [SERVICE WORKER] Notification title:', payload.notification?.title);
     console.log('🔔 [SERVICE WORKER] Notification body:', payload.notification?.body);
     
+    // CRITICAL FIX for Duplicates:
+    // If the payload contains a 'notification' block, the browser/OS automatically shows a notification.
+    // We MUST NOT show a second manual notification in this case.
+    if (payload.notification) {
+      logToMainThread(`[SW] 🛑 BLOCKING manual notification because 'notification' block is present (OS handles it)`);
+      console.log('🛑 [SERVICE WORKER] Skipping manual notification because system notification will be shown');
+      
+      // Still mark as shown to prevent other handlers from firing
+      notificationShown = true;
+      setTimeout(() => {
+        notificationShown = false;
+      }, NOTIFICATION_TIMEOUT);
+      
+      return; 
+    }
+    
     // Generate unique tag for this notification
     const tag = payload.data?.tag || `trader-notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     logToMainThread(`[SW]    Tag: ${tag}`);
@@ -214,6 +230,19 @@ self.addEventListener('push', function(event) {
   const data = event.data ? event.data.json() : {};
   const tag = data.data?.tag || `trader-notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   logToMainThread(`[SW]    Tag: ${tag}`);
+  
+  // CRITICAL FIX: If payload has 'notification', OS handles it. Skip manual show.
+  if (data.notification) {
+    logToMainThread(`[SW] 🛑 BLOCKING manual notification (native) because 'notification' block is present`);
+    console.log('🛑 [SERVICE WORKER] Native push ignored - System notification handles it');
+    
+    notificationShown = true;
+    setTimeout(() => {
+      notificationShown = false;
+    }, NOTIFICATION_TIMEOUT);
+    
+    return;
+  }
   
   // Prevent duplicate notifications
   if (notificationShown) {
