@@ -120,13 +120,14 @@ if (messaging) {
       }, NOTIFICATION_TIMEOUT);
       
       // Customize notification here
-      const notificationTitle = payload.notification?.title || 'Background Message Title';
-      const notificationBody = payload.notification?.body || 'Background Message body.';
+      // With data-only messages, content is in payload.data, not payload.notification
+      const notificationTitle = payload.data?.title || payload.notification?.title || 'Background Message Title';
+      const notificationBody = payload.data?.body || payload.notification?.body || 'Background Message body.';
       
       const notificationOptions = {
         body: notificationBody,
-        icon: payload.notification?.icon || '/icon-192x192.png',
-        badge: payload.notification?.badge || '/icon-96x96.png',
+        icon: payload.data?.icon || payload.notification?.icon || '/icon-192x192.png',
+        badge: payload.data?.badge || payload.notification?.badge || '/icon-96x96.png',
         tag: tag, // Unique tag prevents browser duplicates
         data: payload.data || {},
         requireInteraction: false,
@@ -157,13 +158,13 @@ if (messaging) {
         notificationShown = false;
       }, NOTIFICATION_TIMEOUT);
       
-      const notificationTitle = payload.notification?.title || 'Background Message Title';
-      const notificationBody = payload.notification?.body || 'Background Message body.';
+      const notificationTitle = payload.data?.title || payload.notification?.title || 'Background Message Title';
+      const notificationBody = payload.data?.body || payload.notification?.body || 'Background Message body.';
       
       const notificationOptions = {
         body: notificationBody,
-        icon: payload.notification?.icon || '/icon-192x192.png',
-        badge: payload.notification?.badge || '/icon-96x96.png',
+        icon: payload.data?.icon || payload.notification?.icon || '/icon-192x192.png',
+        badge: payload.data?.badge || payload.notification?.badge || '/icon-96x96.png',
         tag: tag,
         data: payload.data || {},
         requireInteraction: false,

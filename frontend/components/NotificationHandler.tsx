@@ -96,89 +96,23 @@ const NotificationHandler: React.FC = () => {
     notificationHandlerInitialized = true
     appendDebugLog('Notification handler initialized')
     
-    // Log service worker status (with retry since registration happens async)
+    // Log service worker status
     if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
-      const checkServiceWorkers = async (retryCount = 0) => {
-        try {
-          const registrations = await navigator.serviceWorker.getRegistrations()
-          appendDebugLog(`Service Workers: ${registrations.length} registered`)
-          
-          if (registrations.length === 0 && retryCount < 5) {
-            // Retry after a delay if no service workers found yet
-            appendDebugLog(`  Retrying in 1s... (attempt ${retryCount + 1}/5)`)
-            setTimeout(() => checkServiceWorkers(retryCount + 1), 1000)
-            return
-          }
-          
-          if (registrations.length > 0) {
-            registrations.forEach((reg, idx) => {
-              const state = reg.installing ? 'installing' : reg.waiting ? 'waiting' : reg.active ? 'active' : 'unknown'
-              const scriptURL = reg.active?.scriptURL || reg.waiting?.scriptURL || reg.installing?.scriptURL || 'unknown'
-              appendDebugLog(`  SW ${idx + 1}: ${scriptURL} (${state}, scope: ${reg.scope})`)
-            })
-          } else {
-            appendDebugLog('⚠️ No service workers found after retries - registration may have failed')
-          }
-        } catch (err: any) {
-          appendDebugLog(`Error checking service workers: ${err.message}`)
-        }
-      }
-      
-      // Initial check
-      checkServiceWorkers()
-      
-      // Also check when service worker becomes ready
-      navigator.serviceWorker.ready.then(() => {
-        appendDebugLog('Service worker ready event fired, re-checking...')
-        checkServiceWorkers()
+      navigator.serviceWorker.getRegistrations().then(registrations => {
+        appendDebugLog(`Service Workers: ${registrations.length} registered`)
+        registrations.forEach((reg, idx) => {
+          appendDebugLog(`  SW ${idx + 1}: ${reg.active?.scriptURL || 'inactive'} (scope: ${reg.scope})`)
+        })
       }).catch(err => {
-        appendDebugLog(`Error waiting for SW ready: ${err.message}`)
+        appendDebugLog(`Error checking service workers: ${err.message}`)
       })
       
       // Listen for messages from service worker
-      const handleServiceWorkerMessage = (event: MessageEvent) => {
+      navigator.serviceWorker.addEventListener('message', (event) => {
         if (event.data && event.data.type === 'notification-log') {
-          appendDebugLog(`${event.data.message}`)
-          console.log('[SW Message]', event.data.message)
+          appendDebugLog(`[SW] ${event.data.message}`)
         }
-      }
-      
-      // Use BroadcastChannel for more reliable communication (if supported)
-      let swLogChannel: BroadcastChannel | null = null
-      try {
-        swLogChannel = new BroadcastChannel('sw-log-channel')
-        swLogChannel.onmessage = (event) => {
-          if (event.data && event.data.type === 'notification-log') {
-            appendDebugLog(`${event.data.message}`)
-            console.log('[SW Broadcast]', event.data.message)
-          }
-        }
-        appendDebugLog('BroadcastChannel listener set up for SW logs')
-      } catch (e) {
-        appendDebugLog('BroadcastChannel not supported, using message API')
-      }
-      
-      // Listen on navigator.serviceWorker (global message event)
-      navigator.serviceWorker.addEventListener('message', handleServiceWorkerMessage)
-      
-      // Also listen on the controller if available
-      if (navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.addEventListener('message', handleServiceWorkerMessage)
-      }
-      
-      // Set up listener for when service worker becomes available
-      navigator.serviceWorker.ready.then(registration => {
-        appendDebugLog(`Service worker ready: ${registration.scope}`)
-        if (registration.active) {
-          registration.active.addEventListener('message', handleServiceWorkerMessage)
-        }
-        // Also listen on the registration itself
-        registration.addEventListener('updatefound', () => {
-          appendDebugLog('Service worker update found')
-        })
       })
-      
-      appendDebugLog('Service worker message listener set up')
     }
     
     if (typeof window === 'undefined' || !('Notification' in window) || !messaging || !VAPID_KEY) {
@@ -526,9 +460,9 @@ const NotificationHandler: React.FC = () => {
           
           // NotificationOptions type may not include badge in some TypeScript versions, so use type assertion
           const notificationOptions: NotificationOptions & { badge?: string } = {
-            body: payload.notification?.body || 'You have a new message.',
-            icon: payload.notification?.icon || '/icon-192x192.png',
-            badge: '/icon-96x96.png', // Badge for mobile notifications
+            body: payload.data?.body || payload.notification?.body || 'You have a new message.',
+            icon: payload.data?.icon || payload.notification?.icon || '/icon-192x192.png',
+            badge: payload.data?.badge || '/icon-96x96.png', // Badge for mobile notifications
             tag: uniqueTag, // Unique tag prevents duplicates
             data: payload.data || {},
             requireInteraction: true, // Keep it open until user interacts (prevents auto-close)
@@ -538,7 +472,7 @@ const NotificationHandler: React.FC = () => {
           appendDebugLog(`   Options: tag=${uniqueTag}, requireInteraction=true`)
           
           const notification = new Notification(
-            payload.notification?.title || 'New Message',
+            payload.data?.title || payload.notification?.title || 'New Message',
             notificationOptions
           )
           

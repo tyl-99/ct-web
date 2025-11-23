@@ -1,5 +1,6 @@
 import json
 import os
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -256,44 +257,41 @@ def send_push_notification(token: str, title: str, body: str, data: Optional[Dic
     """Sends a push notification to a specific device token."""
     from firebase_admin import messaging
 
-    # Create message with both notification and data payload
-    # This ensures notifications work in both foreground and background
+    # Create message with data-only payload to prevent duplicate notifications
+    # When 'notification' key is present, the OS/browser automatically shows a notification
+    # By moving content to 'data', we force the Service Worker to handle it, where we have deduplication logic
+    
+    data_payload = data or {}
+    data_payload.update({
+        'title': title,
+        'body': body,
+        # Ensure a unique tag is generated if not provided
+        'tag': data_payload.get('tag') or f"trader-notif-{int(datetime.now().timestamp()*1000)}"
+    })
+
     message = messaging.Message(
-        notification=messaging.Notification(
-            title=title,
-            body=body,
-        ),
-        data=data or {},  # Data payload for custom handling
+        # notification=...  <-- OMITTED intentionally to prevent auto-display
+        data=data_payload,
         token=token,
         webpush=messaging.WebpushConfig(
-            notification=messaging.WebpushNotification(
-                title=title,
-                body=body,
-                icon='/icon-192x192.png',
-                badge='/icon-96x96.png',
+            headers={
+                "Urgency": "high"
+            },
+            # We can still provide headers/config but avoid the 'notification' key
+            fcm_options=messaging.WebpushFCMOptions(
+                link="/"
             )
         )
     )
 
     try:
-        import datetime
-        timestamp = datetime.datetime.now().isoformat()
-        print(f"[{timestamp}] 🔔 [NOTIFICATION] Sending push notification")
-        print(f"[{timestamp}]    Title: {title}")
-        print(f"[{timestamp}]    Body: {body}")
-        print(f"[{timestamp}]    Token: {token[:20]}...{token[-10:]}")
-        print(f"[{timestamp}]    Data: {data}")
-        
         response = messaging.send(message)
-        print(f"[{timestamp}] ✅ [NOTIFICATION] Successfully sent message: {response}")
-        print(f"[{timestamp}]    Message ID: {response}")
+        print(f"✅ Successfully sent message: {response}")
+        print(f"   Title: {title}")
+        print(f"   Body: {body}")
+        print(f"   Token: {token[:20]}...")
     except Exception as e:
-        import datetime
-        timestamp = datetime.datetime.now().isoformat()
-        print(f"[{timestamp}] ❌ [NOTIFICATION] Error sending message: {e}")
-        print(f"[{timestamp}]    Error type: {type(e).__name__}")
-        import traceback
-        print(f"[{timestamp}]    Traceback: {traceback.format_exc()}")
+        print(f"❌ Error sending message: {e}")
         raise
 
 
