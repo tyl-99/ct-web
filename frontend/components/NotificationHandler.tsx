@@ -95,8 +95,29 @@ const NotificationHandler: React.FC = () => {
     }
     notificationHandlerInitialized = true
     appendDebugLog('Notification handler initialized')
+    
+    // Log service worker status
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(registrations => {
+        appendDebugLog(`Service Workers: ${registrations.length} registered`)
+        registrations.forEach((reg, idx) => {
+          appendDebugLog(`  SW ${idx + 1}: ${reg.active?.scriptURL || 'inactive'} (scope: ${reg.scope})`)
+        })
+      }).catch(err => {
+        appendDebugLog(`Error checking service workers: ${err.message}`)
+      })
+      
+      // Listen for messages from service worker
+      navigator.serviceWorker.addEventListener('message', (event) => {
+        if (event.data && event.data.type === 'notification-log') {
+          appendDebugLog(`[SW] ${event.data.message}`)
+        }
+      })
+    }
+    
     if (typeof window === 'undefined' || !('Notification' in window) || !messaging || !VAPID_KEY) {
       appendDebugLog('Notifications not supported or messaging/VAPID_KEY missing')
+      appendDebugLog(`  window: ${typeof window !== 'undefined'}, Notification: ${'Notification' in window}, messaging: ${!!messaging}, VAPID_KEY: ${!!VAPID_KEY}`)
       return
     }
 
@@ -369,6 +390,12 @@ const NotificationHandler: React.FC = () => {
     }
     
     const unsubscribe = onMessage(messaging, (payload) => {
+      const timestamp = new Date().toISOString()
+      appendDebugLog(`📬 [${timestamp}] FOREGROUND MESSAGE RECEIVED`)
+      appendDebugLog(`   Title: ${payload.notification?.title || 'N/A'}`)
+      appendDebugLog(`   Body: ${payload.notification?.body || 'N/A'}`)
+      appendDebugLog(`   Data: ${JSON.stringify(payload.data || {})}`)
+      
       console.log('📬 [FOREGROUND] ========== MESSAGE RECEIVED ==========')
       console.log('📬 [FOREGROUND] Full payload:', JSON.stringify(payload, null, 2))
       console.log('📬 [FOREGROUND] Notification title:', payload.notification?.title)
@@ -378,6 +405,7 @@ const NotificationHandler: React.FC = () => {
       // Use unique tag - prefer data.tag if provided, otherwise generate unique tag
       // This matches the service worker logic to prevent duplicates
       const uniqueTag = payload.data?.tag || `trader-notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      appendDebugLog(`   Generated tag: ${uniqueTag}`)
       
       // CRITICAL: Check if this notification was already shown (deduplication)
       // Use localStorage to track recent notifications across page reloads
@@ -386,16 +414,24 @@ const NotificationHandler: React.FC = () => {
       const now = Date.now()
       const NOTIFICATION_COOLDOWN = 2000 // 2 seconds
       
+      appendDebugLog(`   Checking deduplication (${Object.keys(recentNotifications).length} recent entries)`)
+      
       // Clean old entries (older than cooldown)
+      let cleanedCount = 0
       Object.keys(recentNotifications).forEach(key => {
         if (now - recentNotifications[key] > NOTIFICATION_COOLDOWN) {
           delete recentNotifications[key]
+          cleanedCount++
         }
       })
+      if (cleanedCount > 0) {
+        appendDebugLog(`   Cleaned ${cleanedCount} old entries`)
+      }
       
       // Check if this notification was shown recently
       if (recentNotifications[notificationKey]) {
         const timeSince = now - recentNotifications[notificationKey]
+        appendDebugLog(`⚠️ DUPLICATE BLOCKED: shown ${timeSince}ms ago (within ${NOTIFICATION_COOLDOWN}ms window)`)
         console.log(`⚠️ [FOREGROUND] Duplicate notification ignored (shown ${timeSince}ms ago)`)
         return
       }
@@ -403,10 +439,15 @@ const NotificationHandler: React.FC = () => {
       // Mark as shown
       recentNotifications[notificationKey] = now
       localStorage.setItem('recent-notifications', JSON.stringify(recentNotifications))
+      appendDebugLog(`   Marked as shown in localStorage`)
       
       // CRITICAL: Only show notification if app is actually in foreground
       // If document is hidden, the service worker will handle it, so don't show here
+      appendDebugLog(`   Document visibility: ${document.hidden ? 'HIDDEN (background)' : 'VISIBLE (foreground)'}`)
+      appendDebugLog(`   Notification permission: ${Notification.permission}`)
+      
       if (document.hidden) {
+        appendDebugLog(`⚠️ SKIPPING: App in background, service worker will handle`)
         console.log('⚠️ [FOREGROUND] App is in background, service worker will handle notification');
         return;
       }
@@ -414,6 +455,7 @@ const NotificationHandler: React.FC = () => {
       // Display notification when app is in foreground
       if (Notification.permission === 'granted') {
         try {
+          appendDebugLog(`🔔 Creating browser notification...`)
           console.log('🔔 [FOREGROUND] Creating browser notification...')
           
           // NotificationOptions type may not include badge in some TypeScript versions, so use type assertion
@@ -427,10 +469,16 @@ const NotificationHandler: React.FC = () => {
             silent: false // Make sure it's not silent (browser will use default sound)
           }
           
+          appendDebugLog(`   Options: tag=${uniqueTag}, requireInteraction=true`)
+          
           const notification = new Notification(
             payload.notification?.title || 'New Message',
             notificationOptions
           )
+          
+          appendDebugLog(`✅ Notification object created`)
+          appendDebugLog(`   Title: ${notification.title}`)
+          appendDebugLog(`   Tag: ${notification.tag}`)
           
           console.log('✅ [FOREGROUND] Notification object created:', notification)
           console.log('📋 [FOREGROUND] Notification properties:')
@@ -440,19 +488,23 @@ const NotificationHandler: React.FC = () => {
           
           // Check if notification is actually showing
           notification.onshow = () => {
+            appendDebugLog(`✅✅✅ Notification SHOW event - visible to user!`)
             console.log('✅✅✅ [FOREGROUND] Notification SHOW event fired - notification is visible!')
           }
           
           notification.onerror = (error) => {
+            appendDebugLog(`❌ Notification ERROR: ${error}`)
             console.error('❌ [FOREGROUND] Notification ERROR event:', error)
           }
           
           notification.onclose = () => {
+            appendDebugLog(`🔔 Notification CLOSED`)
             console.log('🔔 [FOREGROUND] Notification CLOSED event')
           }
           
           // Handle notification click
           notification.onclick = () => {
+            appendDebugLog(`🔔 Notification CLICKED`)
             console.log('🔔 [FOREGROUND] Notification clicked!')
             window.focus()
             notification.close()
@@ -463,16 +515,19 @@ const NotificationHandler: React.FC = () => {
           // But add a long timeout as backup (30 seconds)
           setTimeout(() => {
             if (notification) {
+              appendDebugLog(`⏰ Notification still exists after 30s`)
               console.log('⏰ [FOREGROUND] Notification still exists after 30 seconds')
               // Don't auto-close - let user close it manually
             }
           }, 30000)
           
-        } catch (error) {
+        } catch (error: any) {
+          appendDebugLog(`❌ FAILED to create notification: ${error.message}`)
           console.error('❌ [FOREGROUND] Failed to create notification:', error)
           console.error('❌ [FOREGROUND] Error details:', error.message, error.stack)
         }
       } else {
+        appendDebugLog(`⚠️ SKIPPING: Permission not granted (${Notification.permission})`)
         console.warn('⚠️ [FOREGROUND] Notification permission not granted, current:', Notification.permission)
       }
     })

@@ -37,10 +37,28 @@ let notificationShown = false;
 const NOTIFICATION_TIMEOUT = 1000; // 1 second cooldown
 let broadcastChannel = null;
 
+// Helper function to send logs to main thread for debug panel
+function logToMainThread(message) {
+  console.log(message);
+  // Send to all clients (main thread)
+  self.clients.matchAll().then(clients => {
+    clients.forEach(client => {
+      client.postMessage({
+        type: 'notification-log',
+        message: message,
+        timestamp: new Date().toISOString()
+      });
+    });
+  }).catch(err => {
+    // Ignore errors if no clients
+  });
+}
+
 try {
   broadcastChannel = new BroadcastChannel('notification-dedup');
   broadcastChannel.onmessage = (event) => {
     if (event.data.type === 'notification-shown') {
+      logToMainThread(`[SW] Received broadcast: notification shown with tag ${event.data.tag}`);
       notificationShown = true;
       setTimeout(() => {
         notificationShown = false;
@@ -49,35 +67,51 @@ try {
   };
 } catch (e) {
   console.warn('BroadcastChannel not supported, using local deduplication only');
+  logToMainThread('[SW] BroadcastChannel not supported');
 }
 
 // Handle incoming messages while the app is in the background
 if (messaging) {
   messaging.onBackgroundMessage((payload) => {
+    const timestamp = new Date().toISOString();
+    logToMainThread(`[SW] 📬 BACKGROUND MESSAGE at ${timestamp}`);
+    logToMainThread(`[SW]    Title: ${payload.notification?.title || 'N/A'}`);
+    logToMainThread(`[SW]    Body: ${payload.notification?.body || 'N/A'}`);
+    
     console.log('🔔 [SERVICE WORKER] Received background message:', payload);
     console.log('🔔 [SERVICE WORKER] Notification title:', payload.notification?.title);
     console.log('🔔 [SERVICE WORKER] Notification body:', payload.notification?.body);
     
     // Generate unique tag for this notification
     const tag = payload.data?.tag || `trader-notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    logToMainThread(`[SW]    Tag: ${tag}`);
     
     // Check if another service worker already showed this notification
     if (notificationShown) {
+      logToMainThread(`[SW] ⚠️ BLOCKED: Local flag (duplicate within ${NOTIFICATION_TIMEOUT}ms)`);
       console.log('⚠️ [SERVICE WORKER] Duplicate push ignored (local flag)');
       return;
     }
     
+    logToMainThread(`[SW]    Checking existing notifications with tag...`);
+    
     // CRITICAL: Check if a notification with this tag already exists
     // This prevents duplicates even if multiple service workers are active
     return self.registration.getNotifications({ tag: tag }).then(existingNotifications => {
+      logToMainThread(`[SW]    Found ${existingNotifications.length} existing notification(s)`);
+      
       if (existingNotifications.length > 0) {
+        logToMainThread(`[SW] ⚠️ BLOCKED: Tag ${tag} already exists`);
         console.log(`⚠️ [SERVICE WORKER] Notification with tag ${tag} already exists, ignoring duplicate`);
         return Promise.resolve();
       }
       
+      logToMainThread(`[SW]    No duplicates, proceeding...`);
+      
       // Broadcast to other service workers that we're showing this notification
       if (broadcastChannel) {
         broadcastChannel.postMessage({ type: 'notification-shown', tag: tag });
+        logToMainThread(`[SW]    Broadcasted to other SWs`);
       }
       
       notificationShown = true;
@@ -99,20 +133,25 @@ if (messaging) {
         vibrate: [200, 100, 200] // Vibration pattern for mobile devices
       };
 
+      logToMainThread(`[SW] 🔔 Showing: "${notificationTitle}"`);
       console.log('🔔 [SERVICE WORKER] Showing notification:', notificationTitle, 'Tag:', tag);
       
       return self.registration.showNotification(notificationTitle, notificationOptions)
         .then(() => {
+          logToMainThread(`[SW] ✅ Displayed successfully`);
           console.log('✅ [SERVICE WORKER] Notification displayed successfully');
         })
         .catch((error) => {
+          logToMainThread(`[SW] ❌ FAILED: ${error.message}`);
           console.error('❌ [SERVICE WORKER] Failed to show notification:', error);
           // Reset flag on error so retry can work
           notificationShown = false;
         });
     }).catch(error => {
+      logToMainThread(`[SW] ❌ ERROR checking: ${error.message}`);
       console.error('❌ [SERVICE WORKER] Error checking existing notifications:', error);
       // Continue anyway if check fails - show notification
+      logToMainThread(`[SW]    Error occurred, showing anyway (fallback)`);
       notificationShown = true;
       setTimeout(() => {
         notificationShown = false;
@@ -131,6 +170,7 @@ if (messaging) {
         vibrate: [200, 100, 200]
       };
 
+      logToMainThread(`[SW] 🔔 Showing (fallback): "${notificationTitle}"`);
       return self.registration.showNotification(notificationTitle, notificationOptions);
     });
     
@@ -164,13 +204,18 @@ if (messaging) {
 
 // Native push event listener (fallback if Firebase doesn't handle it)
 self.addEventListener('push', function(event) {
+  const timestamp = new Date().toISOString();
+  logToMainThread(`[SW] 📬 NATIVE PUSH EVENT at ${timestamp}`);
+  
   console.log('📬 [SERVICE WORKER] Native push event received');
   
   const data = event.data ? event.data.json() : {};
   const tag = data.data?.tag || `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  logToMainThread(`[SW]    Tag: ${tag}`);
   
   // Prevent duplicate notifications
   if (notificationShown) {
+    logToMainThread(`[SW] ⚠️ BLOCKED: Local flag (native push)`);
     console.log('⚠️ [SERVICE WORKER] Duplicate push ignored (native event, local flag)');
     return;
   }
@@ -178,14 +223,20 @@ self.addEventListener('push', function(event) {
   // CRITICAL: Check if a notification with this tag already exists
   event.waitUntil(
     self.registration.getNotifications({ tag: tag }).then(existingNotifications => {
+      logToMainThread(`[SW]    Found ${existingNotifications.length} existing notification(s)`);
+      
       if (existingNotifications.length > 0) {
+        logToMainThread(`[SW] ⚠️ BLOCKED: Tag ${tag} already exists (native)`);
         console.log(`⚠️ [SERVICE WORKER] Notification with tag ${tag} already exists (native), ignoring duplicate`);
         return Promise.resolve();
       }
       
+      logToMainThread(`[SW]    No duplicates, showing native push notification`);
+      
       // Broadcast to other service workers that we're showing this notification
       if (broadcastChannel) {
         broadcastChannel.postMessage({ type: 'notification-shown', tag: tag });
+        logToMainThread(`[SW]    Broadcasted to other SWs`);
       }
       
       notificationShown = true;
@@ -208,6 +259,7 @@ self.addEventListener('push', function(event) {
         vibrate: [200, 100, 200]
       };
       
+      logToMainThread(`[SW] 🔔 Showing native: "${title}"`);
       return self.registration.showNotification(title, options);
     })
   );
