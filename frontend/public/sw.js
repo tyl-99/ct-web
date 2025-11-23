@@ -75,8 +75,9 @@ if (messaging) {
   messaging.onBackgroundMessage((payload) => {
     const timestamp = new Date().toISOString();
     logToMainThread(`[SW] 📬 BACKGROUND MESSAGE at ${timestamp}`);
-    logToMainThread(`[SW]    Title: ${payload.notification?.title || 'N/A'}`);
-    logToMainThread(`[SW]    Body: ${payload.notification?.body || 'N/A'}`);
+    logToMainThread(`[SW]    Payload keys: ${Object.keys(payload).join(', ')}`);
+    if (payload.notification) logToMainThread(`[SW]    Has 'notification' block: YES`);
+    if (payload.data) logToMainThread(`[SW]    Has 'data' block: YES`);
     
     console.log('🔔 [SERVICE WORKER] Received background message:', payload);
     console.log('🔔 [SERVICE WORKER] Notification title:', payload.notification?.title);

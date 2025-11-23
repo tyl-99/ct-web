@@ -392,9 +392,8 @@ const NotificationHandler: React.FC = () => {
     const unsubscribe = onMessage(messaging, (payload) => {
       const timestamp = new Date().toISOString()
       appendDebugLog(`📬 [${timestamp}] FOREGROUND MESSAGE RECEIVED`)
-      appendDebugLog(`   Title: ${payload.notification?.title || 'N/A'}`)
-      appendDebugLog(`   Body: ${payload.notification?.body || 'N/A'}`)
-      appendDebugLog(`   Data: ${JSON.stringify(payload.data || {})}`)
+      appendDebugLog(`   Payload keys: ${Object.keys(payload).join(', ')}`)
+      if (payload.notification) appendDebugLog(`   Has 'notification' block: YES`)
       
       console.log('📬 [FOREGROUND] ========== MESSAGE RECEIVED ==========')
       console.log('📬 [FOREGROUND] Full payload:', JSON.stringify(payload, null, 2))
@@ -455,76 +454,21 @@ const NotificationHandler: React.FC = () => {
       // Display notification when app is in foreground
       if (Notification.permission === 'granted') {
         try {
-          appendDebugLog(`🔔 Creating browser notification...`)
-          console.log('🔔 [FOREGROUND] Creating browser notification...')
+          appendDebugLog(`🔔 Foreground message received - delegating to Service Worker`)
+          console.log('🔔 [FOREGROUND] Delegating notification to Service Worker')
           
-          // NotificationOptions type may not include badge in some TypeScript versions, so use type assertion
-          const notificationOptions: NotificationOptions & { badge?: string } = {
-            body: payload.data?.body || payload.notification?.body || 'You have a new message.',
-            icon: payload.data?.icon || payload.notification?.icon || '/icon-192x192.png',
-            badge: payload.data?.badge || '/icon-96x96.png', // Badge for mobile notifications
-            tag: uniqueTag, // Unique tag prevents duplicates
-            data: payload.data || {},
-            requireInteraction: true, // Keep it open until user interacts (prevents auto-close)
-            silent: false // Make sure it's not silent (browser will use default sound)
-          }
+          // We do NOT create a new Notification() here anymore because the Service Worker
+          // also receives the push event (native or background) and shows it.
+          // Creating it here causes duplicates because we can't guarantee the same tag
+          // or synchronization with the Service Worker's timing.
           
-          appendDebugLog(`   Options: tag=${uniqueTag}, requireInteraction=true`)
-          
-          const notification = new Notification(
-            payload.data?.title || payload.notification?.title || 'New Message',
-            notificationOptions
-          )
-          
-          appendDebugLog(`✅ Notification object created`)
-          appendDebugLog(`   Title: ${notification.title}`)
-          appendDebugLog(`   Tag: ${notification.tag}`)
-          
-          console.log('✅ [FOREGROUND] Notification object created:', notification)
-          console.log('📋 [FOREGROUND] Notification properties:')
-          console.log('   - Title:', notification.title)
-          console.log('   - Body:', notification.body)
-          console.log('   - Tag:', notification.tag)
-          
-          // Check if notification is actually showing
-          notification.onshow = () => {
-            appendDebugLog(`✅✅✅ Notification SHOW event - visible to user!`)
-            console.log('✅✅✅ [FOREGROUND] Notification SHOW event fired - notification is visible!')
-          }
-          
-          notification.onerror = (error) => {
-            appendDebugLog(`❌ Notification ERROR: ${error}`)
-            console.error('❌ [FOREGROUND] Notification ERROR event:', error)
-          }
-          
-          notification.onclose = () => {
-            appendDebugLog(`🔔 Notification CLOSED`)
-            console.log('🔔 [FOREGROUND] Notification CLOSED event')
-          }
-          
-          // Handle notification click
-          notification.onclick = () => {
-            appendDebugLog(`🔔 Notification CLICKED`)
-            console.log('🔔 [FOREGROUND] Notification clicked!')
-            window.focus()
-            notification.close()
-          }
-          
-          // Keep notification alive - don't auto-close
-          // With requireInteraction: true, it will stay until user clicks or closes it
-          // But add a long timeout as backup (30 seconds)
-          setTimeout(() => {
-            if (notification) {
-              appendDebugLog(`⏰ Notification still exists after 30s`)
-              console.log('⏰ [FOREGROUND] Notification still exists after 30 seconds')
-              // Don't auto-close - let user close it manually
-            }
-          }, 30000)
+          // Just log the event for debugging
+          appendDebugLog(`   Title: ${payload.data?.title || payload.notification?.title}`)
+          appendDebugLog(`   Tag: ${uniqueTag}`)
           
         } catch (error: any) {
-          appendDebugLog(`❌ FAILED to create notification: ${error.message}`)
-          console.error('❌ [FOREGROUND] Failed to create notification:', error)
-          console.error('❌ [FOREGROUND] Error details:', error.message, error.stack)
+          appendDebugLog(`❌ Error in foreground handler: ${error.message}`)
+          console.error('❌ [FOREGROUND] Error:', error)
         }
       } else {
         appendDebugLog(`⚠️ SKIPPING: Permission not granted (${Notification.permission})`)

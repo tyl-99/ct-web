@@ -289,6 +289,8 @@ def send_push_notification(token: str, title: str, body: str, data: Optional[Dic
         print(f"✅ Successfully sent message: {response}")
         print(f"   Title: {title}")
         print(f"   Body: {body}")
+        print(f"   Data keys: {list(data_payload.keys())}")
+        print(f"   Message type: Data-only (no 'notification' block)")
         print(f"   Token: {token[:20]}...")
     except Exception as e:
         print(f"❌ Error sending message: {e}")
