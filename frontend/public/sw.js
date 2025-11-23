@@ -31,41 +31,105 @@ try {
   console.error('❌ [SW] Firebase initialization error:', error);
 }
 
+// Deduplication: Track recent notifications to prevent duplicates
+let notificationShown = false;
+const NOTIFICATION_TIMEOUT = 1000; // 1 second cooldown
+
 // Handle incoming messages while the app is in the background
 if (messaging) {
   messaging.onBackgroundMessage((payload) => {
-  console.log('🔔 [SERVICE WORKER] Received background message:', payload);
-  console.log('🔔 [SERVICE WORKER] Notification title:', payload.notification?.title);
-  console.log('🔔 [SERVICE WORKER] Notification body:', payload.notification?.body);
-  
-  // Customize notification here
-  const notificationTitle = payload.notification?.title || 'Background Message Title';
-  const notificationOptions = {
-    body: payload.notification?.body || 'Background Message body.',
-    icon: '/icon-192x192.png',
-    badge: '/icon-96x96.png',
-    tag: 'trader-notification', // Prevents duplicate notifications
-    data: payload.data || {},
-    requireInteraction: false,
-    vibrate: [200, 100, 200] // Vibration pattern for mobile devices
-  };
+    console.log('🔔 [SERVICE WORKER] Received background message:', payload);
+    console.log('🔔 [SERVICE WORKER] Notification title:', payload.notification?.title);
+    console.log('🔔 [SERVICE WORKER] Notification body:', payload.notification?.body);
+    
+    // Prevent duplicate notifications within timeout window
+    if (notificationShown) {
+      console.log('⚠️ [SERVICE WORKER] Duplicate push ignored (within timeout window)');
+      return;
+    }
+    
+    notificationShown = true;
+    setTimeout(() => {
+      notificationShown = false;
+    }, NOTIFICATION_TIMEOUT);
+    
+    // Customize notification here
+    const notificationTitle = payload.notification?.title || 'Background Message Title';
+    const notificationBody = payload.notification?.body || 'Background Message body.';
+    
+    // CRITICAL: Use unique tag to prevent duplicates
+    // Use data.tag if provided, otherwise generate unique tag with timestamp
+    const tag = payload.data?.tag || `trader-notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    const notificationOptions = {
+      body: notificationBody,
+      icon: payload.notification?.icon || '/icon-192x192.png',
+      badge: payload.notification?.badge || '/icon-96x96.png',
+      tag: tag, // Unique tag prevents browser duplicates
+      data: payload.data || {},
+      requireInteraction: false,
+      vibrate: [200, 100, 200] // Vibration pattern for mobile devices
+    };
 
-  console.log('🔔 [SERVICE WORKER] Showing notification:', notificationTitle);
-  
-  return self.registration.showNotification(notificationTitle, notificationOptions)
-    .then(() => {
-      console.log('✅ [SERVICE WORKER] Notification displayed successfully');
-    })
-    .catch((error) => {
-      console.error('❌ [SERVICE WORKER] Failed to show notification:', error);
-    });
+    console.log('🔔 [SERVICE WORKER] Showing notification:', notificationTitle, 'Tag:', tag);
+    
+    return self.registration.showNotification(notificationTitle, notificationOptions)
+      .then(() => {
+        console.log('✅ [SERVICE WORKER] Notification displayed successfully');
+      })
+      .catch((error) => {
+        console.error('❌ [SERVICE WORKER] Failed to show notification:', error);
+        // Reset flag on error so retry can work
+        notificationShown = false;
+      });
   });
 }
+
+// Native push event listener (fallback if Firebase doesn't handle it)
+self.addEventListener('push', function(event) {
+  console.log('📬 [SERVICE WORKER] Native push event received');
+  
+  // Prevent duplicate notifications
+  if (notificationShown) {
+    console.log('⚠️ [SERVICE WORKER] Duplicate push ignored (native event)');
+    return;
+  }
+  
+  notificationShown = true;
+  setTimeout(() => {
+    notificationShown = false;
+  }, NOTIFICATION_TIMEOUT);
+  
+  const data = event.data ? event.data.json() : {};
+  const title = data.notification?.title || data.title || 'Notification';
+  const body = data.notification?.body || data.body || '';
+  const icon = data.notification?.icon || '/icon-192x192.png';
+  const badge = data.notification?.badge || '/icon-96x96.png';
+  
+  // CRITICAL: Use unique tag to prevent duplicates
+  const tag = data.data?.tag || `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  
+  const options = {
+    body: body,
+    icon: icon,
+    badge: badge,
+    tag: tag,
+    data: data.data || {},
+    requireInteraction: false,
+    vibrate: [200, 100, 200]
+  };
+  
+  event.waitUntil(
+    self.registration.showNotification(title, options)
+  );
+});
 
 // Handle notification clicks
 self.addEventListener('notificationclick', (event) => {
   console.log('[sw.js] Notification click received.');
   event.notification.close();
+  
+  const url = event.notification.data?.action_url || '/';
   
   // This looks to see if the current is already open and focuses if it is
   event.waitUntil(
@@ -74,12 +138,14 @@ self.addEventListener('notificationclick', (event) => {
     }).then((clientList) => {
       for (let i = 0; i < clientList.length; i++) {
         const client = clientList[i];
-        if (client.url === '/' && 'focus' in client) {
-          return client.focus();
+        if (client.url === url || client.url === '/') {
+          if ('focus' in client) {
+            return client.focus();
+          }
         }
       }
       if (clients.openWindow) {
-        return clients.openWindow('/');
+        return clients.openWindow(url);
       }
     })
   );

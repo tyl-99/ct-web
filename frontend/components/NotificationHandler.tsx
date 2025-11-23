@@ -380,16 +380,17 @@ const NotificationHandler: React.FC = () => {
         try {
           console.log('🔔 [FOREGROUND] Creating browser notification...')
           
-          // Use unique tag with timestamp so each notification shows separately
-          const uniqueTag = `trader-notification-${Date.now()}-${Math.random()}`
+          // Use unique tag - prefer data.tag if provided, otherwise generate unique tag
+          // This matches the service worker logic to prevent duplicates
+          const uniqueTag = payload.data?.tag || `trader-notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
           
           const notification = new Notification(
             payload.notification?.title || 'New Message', 
             {
               body: payload.notification?.body || 'You have a new message.',
-              icon: '/icon-192x192.png',
-              badge: '/icon-96x96.png',
-              tag: uniqueTag, // Unique tag so each notification shows separately
+              icon: payload.notification?.icon || '/icon-192x192.png',
+              badge: payload.notification?.badge || '/icon-96x96.png',
+              tag: uniqueTag, // Unique tag prevents duplicates
               data: payload.data || {},
               requireInteraction: true, // Keep it open until user interacts (prevents auto-close)
               silent: false // Make sure it's not silent (browser will use default sound)
