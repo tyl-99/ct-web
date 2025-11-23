@@ -24,7 +24,7 @@ const NotificationHandler: React.FC = () => {
     }
     return 'default'
   })
-  const defaultDebugPanel = process.env.NEXT_PUBLIC_NOTIFICATION_DEBUG === 'true'
+  const defaultDebugPanel = process.env.NEXT_PUBLIC_NOTIFICATION_DEBUG !== 'false'
   const [debugLogs, setDebugLogs] = useState<string[]>([])
   const debugLogsRef = useRef<string[]>([])
   const [allowDebugPanel, setAllowDebugPanel] = useState<boolean>(defaultDebugPanel)
