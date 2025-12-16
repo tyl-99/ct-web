@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+// Force dynamic rendering - prevents Next.js from caching this route
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 type PairSummary = {
   total_trades: number
   wins: number
@@ -78,6 +82,12 @@ export async function GET(request: NextRequest) {
         },
         tradesData: tradesBySymbol,
         forexData: forexData
+      }, {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        }
       })
     } catch (fetchError: any) {
       console.error(`❌ [API] Error fetching from localhost API:`, fetchError)

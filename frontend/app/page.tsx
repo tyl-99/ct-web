@@ -181,9 +181,10 @@ export default function Home() {
       })
 
       const dataResponse = await fetch(`/api/data?accountId=${accountQuery}`, {
-        cache: 'no-store',
+        cache: 'reload', // Force reload from server, bypasses all caches
         headers: {
           'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
         }
       })
       
