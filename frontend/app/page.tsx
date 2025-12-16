@@ -142,7 +142,7 @@ export default function Home() {
   }, [selectedAccountId]) // Removed circular dependencies
 
   // Auto-refresh functionality - uses selectedAccountId from state
-  const loadData = useCallback(async (accountIdOverride?: string) => {
+  const loadData = useCallback(async (accountIdOverride?: string, forceRefresh: boolean = false) => {
     setIsRefreshing(true)
     setLoading(true)
     try {
@@ -177,14 +177,18 @@ export default function Home() {
         accountIdOverride,
         selectedAccountId,
         accountsCount: accounts.length,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        forceRefresh
       })
 
-      const dataResponse = await fetch(`/api/data?accountId=${accountQuery}`, {
-        cache: 'reload', // Force reload from server, bypasses all caches
+      // Add cache-busting timestamp parameter when force refreshing
+      const cacheBuster = forceRefresh ? `&_t=${Date.now()}` : ''
+      const dataResponse = await fetch(`/api/data?accountId=${accountQuery}${cacheBuster}`, {
+        cache: 'no-store', // Don't store in cache
         headers: {
-          'Cache-Control': 'no-cache',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
           'Pragma': 'no-cache',
+          'Expires': '0',
         }
       })
       
@@ -329,10 +333,13 @@ export default function Home() {
   // which is why you see duplicate logs. This is expected behavior and helps catch bugs.
   // It only happens in development, not in production.
   const isDevelopment = process.env.NODE_ENV === 'development'
-  const { lastRefresh, forceRefresh } = useAutoRefresh(loadData, {
-    interval: 120000, // 2 minutes (120000ms) - not used when disabled
-    enabled: false // Disabled - use manual refresh button instead
-  })
+  const { lastRefresh, forceRefresh } = useAutoRefresh(
+    () => loadData(undefined, false), // Auto-refresh doesn't need cache busting
+    {
+      interval: 120000, // 2 minutes (120000ms) - not used when disabled
+      enabled: false // Disabled - use manual refresh button instead
+    }
+  )
 
   // Wrapper for refresh that also requests notification permission (required for iOS)
   const handleRefreshWithNotification = useCallback(async () => {
@@ -347,9 +354,9 @@ export default function Home() {
         }
       }
     }
-    // Then proceed with refresh
-    await forceRefresh()
-  }, [forceRefresh])
+    // Force refresh with cache busting - always fetch fresh data
+    await loadData(undefined, true)
+  }, [loadData])
 
   // Initial load - only run once on mount (even with StrictMode)
   useEffect(() => {
